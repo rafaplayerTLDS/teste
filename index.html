@@ -104,7 +104,7 @@
             font-size: 13px;
         }
 
-        select {
+        select, input {
             width: 100%;
             padding: 12px;
             background: #1a1a1a;
@@ -113,11 +113,18 @@
             border-radius: 6px;
             font-size: 15px;
             font-weight: 600;
-            cursor: pointer;
             margin-bottom: 20px;
         }
 
-        select:focus {
+        select {
+            cursor: pointer;
+        }
+
+        input::placeholder {
+            color: #666;
+        }
+
+        select:focus, input:focus {
             outline: none;
             border-color: #ff3b3b;
         }
@@ -241,6 +248,60 @@
             background: linear-gradient(135deg, #357abd 0%, #2d5a8f 100%);
         }
 
+        /* SOLICITAÇÃO */
+        .solicitacao-box {
+            background: #2a2a2a;
+            padding: 25px;
+            border: 3px solid #444;
+            border-radius: 8px;
+            margin-top: 30px;
+            display: none;
+        }
+
+        .solicitacao-box.show {
+            display: block;
+        }
+
+        .solicitacao-box h3 {
+            color: #ff3b3b;
+            margin-bottom: 20px;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .solicitacao-content {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 6px;
+            border: 2px solid #444;
+            margin-bottom: 15px;
+        }
+
+        .solicitacao-texto {
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .comando-texto {
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            margin-bottom: 10px;
+        }
+
+        .btn-copy:hover {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+
         /* HISTÓRICO */
         .historico-box {
             background: #2a2a2a;
@@ -341,6 +402,9 @@
     <div class="selector-box">
         <h3>🎲 Selecione a Ação para Sortear</h3>
         
+        <label>ID do Player:</label>
+        <input type="text" id="inputPlayerId" placeholder="Digite o ID do player">
+
         <label>Escolha a Ação:</label>
         <select id="selectAcao">
             <option value="">-- Selecione uma ação --</option>
@@ -353,6 +417,10 @@
     <div class="result-box" id="resultBox">
         <div class="result-header">RESULTADO DO SORTEIO</div>
         <div class="result-content">
+            <div class="result-item">
+                <span class="result-label">ID do Player:</span>
+                <span class="result-value" id="resultPlayerId">-</span>
+            </div>
             <div class="result-item">
                 <span class="result-label">Ação:</span>
                 <span class="result-value" id="resultNome">-</span>
@@ -377,9 +445,24 @@
 
             <div class="button-group">
                 <button onclick="sortearNovamente()">🔄 Sortear Novamente</button>
-                <button class="btn-secondary" onclick="copiarResultado()">📋 Copiar</button>
+                <button class="btn-secondary" onclick="copiarResultado()">📋 Copiar Resumo</button>
             </div>
         </div>
+    </div>
+
+    <!-- SOLICITAÇÃO DE DEVOLUÇÃO -->
+    <div class="solicitacao-box" id="solicitacaoBox">
+        <h3>📝 Solicitação de Devolução</h3>
+        
+        <div class="solicitacao-content">
+            <div class="solicitacao-texto" id="solicitacaoTexto"></div>
+        </div>
+        <button class="btn-copy" onclick="copiarSolicitacao()">📋 Copiar Solicitação</button>
+
+        <div class="solicitacao-content">
+            <div class="comando-texto" id="comandoTexto"></div>
+        </div>
+        <button class="btn-copy" onclick="copiarComando()">📋 Copiar Comando</button>
     </div>
 
     <!-- HISTÓRICO -->
@@ -433,6 +516,7 @@ const acoes = [
 ];
 
 let historico = [];
+let ultimoSorteio = null;
 
 function formatarDinheiro(valor) {
     return '$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -455,20 +539,30 @@ function popularSelect() {
 
 function habilitarBotao() {
     const select = document.getElementById('selectAcao');
+    const input = document.getElementById('inputPlayerId');
     const btn = document.getElementById('btnSortear');
-    btn.disabled = select.value === '';
+    btn.disabled = select.value === '' || input.value.trim() === '';
 }
 
 function sortearAcao() {
     const select = document.getElementById('selectAcao');
+    const playerId = document.getElementById('inputPlayerId').value.trim();
     const index = parseInt(select.value);
     
-    if (isNaN(index)) return;
+    if (isNaN(index) || playerId === '') return;
     
     const acao = acoes[index];
     const valorSorteado = sortearValor(acao.minimo, acao.maximo);
     
+    // Salvar último sorteio
+    ultimoSorteio = {
+        playerId: playerId,
+        acao: acao.nome,
+        valor: valorSorteado
+    };
+    
     // Mostrar resultado
+    document.getElementById('resultPlayerId').textContent = playerId;
     document.getElementById('resultNome').textContent = acao.nome;
     document.getElementById('resultMinimo').textContent = formatarDinheiro(acao.minimo);
     document.getElementById('resultMaximo').textContent = formatarDinheiro(acao.maximo);
@@ -477,8 +571,12 @@ function sortearAcao() {
     
     document.getElementById('resultBox').classList.add('show');
     
+    // Gerar solicitação e comando
+    gerarSolicitacao(playerId, acao.nome, valorSorteado);
+    
     // Adicionar ao histórico
     historico.unshift({
+        playerId: playerId,
         nome: acao.nome,
         valor: valorSorteado,
         timestamp: new Date()
@@ -490,18 +588,51 @@ function sortearAcao() {
     document.getElementById('resultBox').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function gerarSolicitacao(playerId, acaoNome, valorSorteado) {
+    const textoSolicitacao = `SOLICITAÇÃO DE DEVOLUÇÃO
+ID: ${playerId}
+Motivo: Ganhou ação marcada ${acaoNome}
+Itens: dinheiro sujo ${valorSorteado.toLocaleString('pt-BR')}
+Provas:
+<@&1362168080716927133>`;
+
+    const textoComando = `solicitar ${playerId} dinheirosujo ${valorSorteado}`;
+    
+    document.getElementById('solicitacaoTexto').textContent = textoSolicitacao;
+    document.getElementById('comandoTexto').textContent = textoComando;
+    
+    document.getElementById('solicitacaoBox').classList.add('show');
+}
+
 function sortearNovamente() {
     sortearAcao();
 }
 
 function copiarResultado() {
+    const playerId = document.getElementById('resultPlayerId').textContent;
     const nome = document.getElementById('resultNome').textContent;
     const valor = document.getElementById('resultValor').textContent;
     
-    const texto = `NEXUS - Sorteio de Ação\n\nAção: ${nome}\nValor Sorteado: ${valor}`;
+    const texto = `NEXUS - Sorteio de Ação\n\nID do Player: ${playerId}\nAção: ${nome}\nValor Sorteado: ${valor}`;
     
     navigator.clipboard.writeText(texto).then(() => {
         alert('✅ Resultado copiado para a área de transferência!');
+    });
+}
+
+function copiarSolicitacao() {
+    const texto = document.getElementById('solicitacaoTexto').textContent;
+    
+    navigator.clipboard.writeText(texto).then(() => {
+        alert('✅ Solicitação copiada para a área de transferência!');
+    });
+}
+
+function copiarComando() {
+    const texto = document.getElementById('comandoTexto').textContent;
+    
+    navigator.clipboard.writeText(texto).then(() => {
+        alert('✅ Comando copiado para a área de transferência!');
     });
 }
 
@@ -519,7 +650,7 @@ function atualizarHistorico() {
         const div = document.createElement('div');
         div.className = 'historico-item';
         div.innerHTML = `
-            <div class="historico-item-nome">${item.nome}</div>
+            <div class="historico-item-nome">ID: ${item.playerId} - ${item.nome}</div>
             <div class="historico-item-valor">${formatarDinheiro(item.valor)}</div>
         `;
         lista.appendChild(div);
@@ -535,6 +666,7 @@ function limparHistorico() {
 
 // Event listeners
 document.getElementById('selectAcao').addEventListener('change', habilitarBotao);
+document.getElementById('inputPlayerId').addEventListener('input', habilitarBotao);
 
 // Inicializar
 window.onload = function() {
